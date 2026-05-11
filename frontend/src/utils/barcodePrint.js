@@ -1,4 +1,6 @@
+import QRCode from 'qrcode';
 import { formatProductColor, formatSizeStockSummary } from './productVariant';
+import { toEan13 } from './barcodeGenerator';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -72,7 +74,143 @@ function buildCode128Svg(value) {
   `;
 }
 
-export default function printBarcodeLabel(product) {
+const EAN_LEFT_ODD = {
+  0: '0001101',
+  1: '0011001',
+  2: '0010011',
+  3: '0111101',
+  4: '0100011',
+  5: '0110001',
+  6: '0101111',
+  7: '0111011',
+  8: '0110111',
+  9: '0001011',
+};
+
+const EAN_LEFT_EVEN = {
+  0: '0100111',
+  1: '0110011',
+  2: '0011011',
+  3: '0100001',
+  4: '0011101',
+  5: '0111001',
+  6: '0000101',
+  7: '0010001',
+  8: '0001001',
+  9: '0010111',
+};
+
+const EAN_RIGHT = {
+  0: '1110010',
+  1: '1100110',
+  2: '1101100',
+  3: '1000010',
+  4: '1011100',
+  5: '1001110',
+  6: '1010000',
+  7: '1000100',
+  8: '1001000',
+  9: '1110100',
+};
+
+const EAN_PARITY = {
+  0: 'OOOOOO',
+  1: 'OOEOEE',
+  2: 'OOEEOE',
+  3: 'OOEEEO',
+  4: 'OEOOEE',
+  5: 'OEEOOE',
+  6: 'OEEEOO',
+  7: 'OEOEOE',
+  8: 'OEOEEO',
+  9: 'OEEOEO',
+};
+
+function buildBarsFromBits(bits, moduleWidth = 2) {
+  let x = 0;
+  const rects = [];
+
+  [...bits].forEach((bit) => {
+    if (bit === '1') {
+      rects.push(`<rect x="${x}" y="0" width="${moduleWidth}" height="100" />`);
+    }
+    x += moduleWidth;
+  });
+
+  return { width: x, rects };
+}
+
+function buildEan13Svg(value) {
+  const digits = toEan13(value);
+  const firstDigit = Number(digits[0]);
+  const parity = EAN_PARITY[firstDigit] || EAN_PARITY[0];
+  const left = digits
+    .slice(1, 7)
+    .split('')
+    .map((digit, index) => (parity[index] === 'E' ? EAN_LEFT_EVEN[digit] : EAN_LEFT_ODD[digit]))
+    .join('');
+  const right = digits
+    .slice(7)
+    .split('')
+    .map((digit) => EAN_RIGHT[digit])
+    .join('');
+  const { width, rects } = buildBarsFromBits(`101${left}01010${right}101`, 2);
+
+  return `
+    <svg class="barcode" viewBox="0 0 ${width} 100" role="img" aria-label="EAN13 ${escapeHtml(digits)}">
+      <rect width="100%" height="100%" fill="#fff" />
+      <g fill="#111">${rects.join('')}</g>
+    </svg>
+  `;
+}
+
+function buildQrSvg(value) {
+  const qr = QRCode.create(String(value || '-'), {
+    errorCorrectionLevel: 'M',
+    margin: 0,
+  });
+  const size = qr.modules.size;
+  const cells = [];
+
+  qr.modules.data.forEach((enabled, index) => {
+    if (!enabled) return;
+    const x = index % size;
+    const y = Math.floor(index / size);
+    cells.push(`<rect x="${x}" y="${y}" width="1" height="1" />`);
+  });
+
+  return `
+    <svg class="barcode qr-code" viewBox="0 0 ${size} ${size}" role="img" aria-label="QR Code ${escapeHtml(value || '-')}">
+      <rect width="100%" height="100%" fill="#fff" />
+      <g fill="#111">${cells.join('')}</g>
+    </svg>
+  `;
+}
+
+function resolveBarcodeMarkup(value, format) {
+  const normalizedFormat = String(format || 'CODE128').toUpperCase();
+
+  if (normalizedFormat === 'EAN13') {
+    return {
+      displayValue: toEan13(value),
+      markup: buildEan13Svg(value),
+    };
+  }
+
+  if (normalizedFormat === 'QR') {
+    return {
+      displayValue: String(value || '-'),
+      markup: buildQrSvg(value),
+    };
+  }
+
+  return {
+    displayValue: String(value || '-'),
+    markup: buildCode128Svg(value),
+  };
+}
+
+export default function printBarcodeLabel(product, options = {}) {
   const printWindow = window.open('', '_blank', 'width=980,height=900');
   if (!printWindow) {
     throw new Error('POPUP_BLOCKED');
@@ -80,6 +218,7 @@ export default function printBarcodeLabel(product) {
 
   const title = `${product?.sku || 'barcode'}-${product?.name || 'produk'}`;
   const barcode = product?.barcode || product?.sku || '';
+  const barcodeResult = resolveBarcodeMarkup(barcode, options.format);
   const location = product?.storage_location || [product?.storage_zone, product?.storage_aisle, product?.storage_rack, product?.storage_bin]
     .filter(Boolean)
     .join(' / ');
@@ -93,8 +232,8 @@ export default function printBarcodeLabel(product) {
       </div>
       <div class="meta">${escapeHtml(product?.sku || '-')} | ${escapeHtml(formatProductColor(product))} | ${escapeHtml(formatSizeStockSummary(product))}</div>
       <div class="barcode-wrap">
-        ${buildCode128Svg(barcode)}
-        <div class="code">${escapeHtml(barcode || '-')}</div>
+        ${barcodeResult.markup}
+        <div class="code">${escapeHtml(barcodeResult.displayValue)}</div>
       </div>
       <div class="location">Lokasi: ${escapeHtml(location || '-')}</div>
     </div>
@@ -188,6 +327,11 @@ export default function printBarcodeLabel(product) {
             height: 58px;
             shape-rendering: crispEdges;
           }
+          .qr-code {
+            height: 68px;
+            margin: 0 auto;
+            width: 68px;
+          }
           .code {
             margin-top: 5px;
             font-family: "Consolas", "Courier New", monospace;
@@ -228,6 +372,10 @@ export default function printBarcodeLabel(product) {
               box-shadow: none;
             }
             .barcode { height: 21mm; }
+            .qr-code {
+              height: 23mm;
+              width: 23mm;
+            }
           }
         </style>
       </head>

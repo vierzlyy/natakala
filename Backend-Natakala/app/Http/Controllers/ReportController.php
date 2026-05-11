@@ -19,6 +19,7 @@ class ReportController extends Controller
             'sku' => $product->sku,
             'name' => $product->name,
             'category_name' => $product->category?->name,
+            'created_at' => optional($product->created_at)->toDateString(),
             'stock' => $product->stock,
             'minimum_stock' => $product->minimum_stock,
             'supplier_name' => $product->supplier?->name,
@@ -41,6 +42,41 @@ class ReportController extends Controller
                     'color' => $item->product?->color ?? '-',
                     'total_items' => $item->quantity,
                     'total_amount' => $item->quantity * $item->purchase_price,
+                ];
+            });
+        })->values();
+
+        return response()->json(['data' => $this->payload($items)]);
+    }
+
+    public function returns(Request $request): JsonResponse
+    {
+        $transactions = $this->applyPeriod(
+            TransactionIn::query()
+                ->with(['supplier', 'items.product'])
+                ->where('inbound_status', 'Barang Return'),
+            $request,
+        )->get();
+
+        $items = $transactions->flatMap(function (TransactionIn $transaction) {
+            return $transaction->items->map(function ($item) use ($transaction) {
+                $condition = $item->qc_note
+                    ? trim(($item->qc_status ?? 'Layak').' - '.$item->qc_note)
+                    : ($item->qc_status ?? 'Layak');
+
+                return [
+                    'transaction_no' => $transaction->transaction_no,
+                    'date' => optional($transaction->date)->toDateString(),
+                    'supplier_name' => $transaction->supplier?->name ?? '-',
+                    'sku' => $item->product?->sku ?? '-',
+                    'product_name' => $item->product?->name ?? '-',
+                    'size' => $item->product?->size ?? '-',
+                    'color' => $item->product?->color ?? '-',
+                    'total_items' => $item->quantity,
+                    'condition' => $condition,
+                    'purchase_price' => $item->purchase_price,
+                    'total_amount' => $item->quantity * $item->purchase_price,
+                    'notes' => $this->cleanInboundNotes($transaction->notes),
                 ];
             });
         })->values();
@@ -71,9 +107,10 @@ class ReportController extends Controller
 
     public function bestSeller(Request $request): JsonResponse
     {
-        $items = Product::query()->orderByDesc('sold_count')->get()->map(fn (Product $product) => [
+        $items = $this->applyPeriod(Product::query(), $request, 'created_at')->orderByDesc('sold_count')->get()->map(fn (Product $product) => [
             'sku' => $product->sku,
             'name' => $product->name,
+            'created_at' => optional($product->created_at)->toDateString(),
             'sold_count' => $product->sold_count,
         ])->values();
 
@@ -82,9 +119,10 @@ class ReportController extends Controller
 
     public function inventoryValue(Request $request): JsonResponse
     {
-        $items = Product::query()->get()->map(fn (Product $product) => [
+        $items = $this->applyPeriod(Product::query(), $request, 'created_at')->get()->map(fn (Product $product) => [
             'sku' => $product->sku,
             'name' => $product->name,
+            'created_at' => optional($product->created_at)->toDateString(),
             'stock' => $product->stock,
             'purchase_price' => $product->purchase_price,
             'inventory_value' => $product->stock * $product->purchase_price,
@@ -95,13 +133,18 @@ class ReportController extends Controller
 
     public function mutasi(Request $request): JsonResponse
     {
-        $items = Product::query()->get()->map(function (Product $product) {
+        $transactionInIds = $this->applyPeriod(TransactionIn::query(), $request)->pluck('id');
+        $transactionOutIds = $this->applyPeriod(TransactionOut::query(), $request)->pluck('id');
+
+        $items = Product::query()->get()->map(function (Product $product) use ($transactionInIds, $transactionOutIds) {
             $inQty = DB::table('transaction_in_items')
                 ->where('product_id', $product->id)
+                ->whereIn('transaction_in_id', $transactionInIds)
                 ->sum('quantity');
 
             $outQty = DB::table('transaction_out_items')
                 ->where('product_id', $product->id)
+                ->whereIn('transaction_out_id', $transactionOutIds)
                 ->sum('quantity');
 
             return [
@@ -114,7 +157,7 @@ class ReportController extends Controller
                 'outgoing_qty' => (int) $outQty,
                 'final_stock' => $product->stock,
             ];
-        })->values();
+        })->filter(fn (array $item) => (int) $item['incoming_qty'] !== 0 || (int) $item['outgoing_qty'] !== 0)->values();
 
         return response()->json(['data' => $this->payload($items)]);
     }
@@ -179,6 +222,7 @@ class ReportController extends Controller
     {
         return match ($request->input('type')) {
             'transactionsIn' => $this->transactionsIn($request)->getData(true)['data'],
+            'returns' => $this->returns($request)->getData(true)['data'],
             'transactionsOut' => $this->transactionsOut($request)->getData(true)['data'],
             'bestSeller' => $this->bestSeller($request)->getData(true)['data'],
             'inventoryValue' => $this->inventoryValue($request)->getData(true)['data'],
@@ -225,17 +269,29 @@ class ReportController extends Controller
             return $query->whereMonth($column, now()->subMonthNoOverflow()->month)->whereYear($column, now()->subMonthNoOverflow()->year);
         }
 
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            return $query->whereBetween($column, [$request->input('start_date'), $request->input('end_date')]);
+        if ($period === 'custom' && $request->filled('start_date') && $request->filled('end_date')) {
+            return $query
+                ->whereDate($column, '>=', $request->input('start_date'))
+                ->whereDate($column, '<=', $request->input('end_date'));
         }
 
         return $query;
+    }
+
+    private function cleanInboundNotes(?string $notes): string
+    {
+        $text = (string) $notes;
+        $markerPosition = strpos($text, '[NATAKALA_INBOUND_META]');
+        $cleanNotes = trim($markerPosition === false ? $text : substr($text, 0, $markerPosition));
+
+        return $cleanNotes !== '' ? $cleanNotes : '-';
     }
 
     private function reportTitle(?string $type): string
     {
         return match ($type) {
             'transactionsIn' => 'Laporan Barang Masuk',
+            'returns' => 'Laporan Barang Return',
             'transactionsOut' => 'Laporan Barang Keluar',
             'bestSeller' => 'Laporan Produk Terlaris',
             'inventoryValue' => 'Laporan Nilai Inventaris',

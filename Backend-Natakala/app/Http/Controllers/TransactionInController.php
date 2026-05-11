@@ -11,23 +11,18 @@ use App\Support\InboundDocumentFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class TransactionInController extends Controller
 {
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => TransactionIn::query()->with('supplier')->latest()->get()->map(fn (TransactionIn $transaction) => [
-                'id' => $transaction->id,
-                'transaction_no' => $transaction->transaction_no,
-                'supplier_id' => $transaction->supplier_id,
-                'supplier_name' => $transaction->supplier?->name,
-                'date' => optional($transaction->date)->toDateString(),
-                'inbound_status' => $transaction->inbound_status,
-                'notes' => $transaction->notes,
-                'total_items' => $transaction->total_items,
-                'total_amount' => $transaction->total_amount,
-            ]),
+            'data' => TransactionIn::query()
+                ->with(['supplier', 'items.product'])
+                ->latest()
+                ->get()
+                ->map(fn (TransactionIn $transaction) => $this->transform($transaction)),
         ]);
     }
 
@@ -47,8 +42,24 @@ class TransactionInController extends Controller
         ]);
 
         $actor = $request->user();
+        $productsById = Product::query()
+            ->whereIn('id', collect($data['items'])->pluck('product_id')->unique()->values())
+            ->get()
+            ->keyBy('id');
 
-        $transaction = DB::transaction(function () use ($data, $actor) {
+        $hasDifferentSupplier = collect($data['items'])->contains(function (array $item) use ($data, $productsById): bool {
+            $product = $productsById->get($item['product_id']);
+
+            return !$product || (string) $product->supplier_id !== (string) $data['supplier_id'];
+        });
+
+        if ($hasDifferentSupplier) {
+            throw ValidationException::withMessages([
+                'items' => ['Semua produk barang masuk harus berasal dari supplier yang sama dengan supplier transaksi.'],
+            ]);
+        }
+
+        $transaction = DB::transaction(function () use ($data, $actor, $productsById) {
             $transaction = TransactionIn::query()->create([
                 'transaction_no' => 'IN-'.now()->format('YmdHis'),
                 'supplier_id' => $data['supplier_id'],
@@ -69,7 +80,7 @@ class TransactionInController extends Controller
                     'qc_note' => $item['condition_note'] ?? null,
                 ]);
 
-                $product = Product::query()->findOrFail($item['product_id']);
+                $product = $productsById->get($item['product_id']);
                 $before = $product->stock;
                 $product->increment('stock', $item['quantity']);
                 $product->update(['initial_stock' => $product->fresh()->stock]);
@@ -101,21 +112,11 @@ class TransactionInController extends Controller
 
             InboundDocumentFactory::createForTransaction($transaction);
 
-            return $transaction->fresh('supplier');
+            return $transaction->fresh(['supplier', 'items.product']);
         });
 
         return response()->json([
-            'data' => [
-                'id' => $transaction->id,
-                'transaction_no' => $transaction->transaction_no,
-                'supplier_id' => $transaction->supplier_id,
-                'supplier_name' => $transaction->supplier?->name,
-                'date' => optional($transaction->date)->toDateString(),
-                'inbound_status' => $transaction->inbound_status,
-                'notes' => $transaction->notes,
-                'total_items' => $transaction->total_items,
-                'total_amount' => $transaction->total_amount,
-            ],
+            'data' => $this->transform($transaction),
         ], 201);
     }
 
@@ -159,5 +160,39 @@ class TransactionInController extends Controller
         });
 
         return response()->json(null, 204);
+    }
+
+    private function transform(TransactionIn $transaction): array
+    {
+        return [
+            'id' => $transaction->id,
+            'transaction_no' => $transaction->transaction_no,
+            'supplier_id' => $transaction->supplier_id,
+            'supplier_name' => $transaction->supplier?->name,
+            'date' => optional($transaction->date)->toDateString(),
+            'inbound_status' => $transaction->inbound_status,
+            'notes' => $transaction->notes,
+            'total_items' => $transaction->total_items,
+            'total_amount' => $transaction->total_amount,
+            'items' => $transaction->items->map(fn (TransactionInItem $item) => [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => $item->product?->name,
+                'sku' => $item->product?->sku,
+                'barcode' => $item->product?->barcode,
+                'color' => $item->product?->color,
+                'product_color' => $item->product?->color,
+                'size' => $item->product?->size,
+                'product_size' => $item->product?->size,
+                'quantity' => $item->quantity,
+                'accepted_quantity' => $item->accepted_quantity,
+                'rejected_quantity' => $item->rejected_quantity,
+                'purchase_price' => $item->purchase_price,
+                'subtotal' => $item->quantity * $item->purchase_price,
+                'condition_status' => $item->qc_status,
+                'condition' => $item->qc_status,
+                'condition_note' => $item->qc_note,
+            ])->values(),
+        ];
     }
 }

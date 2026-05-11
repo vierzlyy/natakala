@@ -24,6 +24,20 @@ function textToDigits(value) {
     .join('');
 }
 
+export function calculateEan13Checksum(value) {
+  const digits = digitsOnly(value).slice(0, 12).padEnd(12, '0');
+  const sum = digits
+    .split('')
+    .reduce((total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
+
+  return String((10 - (sum % 10)) % 10);
+}
+
+export function toEan13(value) {
+  const digits = digitsOnly(value).slice(0, 12).padEnd(12, '0');
+  return `${digits}${calculateEan13Checksum(digits)}`;
+}
+
 export default function generateBarcode({
   products = [],
   productName,
@@ -41,5 +55,5 @@ export default function generateBarcode({
     .filter((value) => Number.isFinite(value));
 
   const nextNumber = String((usedNumbers.length ? Math.max(...usedNumbers) : 0) + 1).padStart(2, '0');
-  return `${prefix}${nextNumber}`;
+  return toEan13(`${prefix}${nextNumber}`);
 }

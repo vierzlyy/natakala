@@ -17,14 +17,11 @@ class TransactionOutController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => TransactionOut::query()->latest()->get()->map(fn (TransactionOut $transaction) => [
-                'id' => $transaction->id,
-                'transaction_no' => $transaction->transaction_no,
-                'date' => optional($transaction->date)->toDateString(),
-                'notes' => $transaction->notes,
-                'total_items' => $transaction->total_items,
-                'method_summary' => $transaction->method_summary,
-            ]),
+            'data' => TransactionOut::query()
+                ->with('items.product')
+                ->latest()
+                ->get()
+                ->map(fn (TransactionOut $transaction) => $this->transform($transaction)),
         ]);
     }
 
@@ -97,18 +94,11 @@ class TransactionOutController extends Controller
                 ],
             );
 
-            return $transaction;
+            return $transaction->fresh('items.product');
         });
 
         return response()->json([
-            'data' => [
-                'id' => $transaction->id,
-                'transaction_no' => $transaction->transaction_no,
-                'date' => optional($transaction->date)->toDateString(),
-                'notes' => $transaction->notes,
-                'total_items' => $transaction->total_items,
-                'method_summary' => $transaction->method_summary,
-            ],
+            'data' => $this->transform($transaction),
         ], 201);
     }
 
@@ -151,5 +141,33 @@ class TransactionOutController extends Controller
         });
 
         return response()->json(null, 204);
+    }
+
+    private function transform(TransactionOut $transaction): array
+    {
+        return [
+            'id' => $transaction->id,
+            'transaction_no' => $transaction->transaction_no,
+            'date' => optional($transaction->date)->toDateString(),
+            'notes' => $transaction->notes,
+            'total_items' => $transaction->total_items,
+            'method_summary' => $transaction->method_summary,
+            'items' => $transaction->items->map(fn (TransactionOutItem $item) => [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => $item->product?->name,
+                'sku' => $item->product?->sku,
+                'barcode' => $item->product?->barcode,
+                'color' => $item->product?->color,
+                'product_color' => $item->product?->color,
+                'colour' => $item->product?->color,
+                'variant_color' => $item->product?->color,
+                'size' => $item->product?->size,
+                'product_size' => $item->product?->size,
+                'variant_size' => $item->product?->size,
+                'quantity' => $item->quantity,
+                'method' => $item->method,
+            ])->values(),
+        ];
     }
 }

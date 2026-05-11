@@ -10,9 +10,11 @@ import productService from '../services/productService';
 import printBarcodeLabel from '../utils/barcodePrint';
 import formatCurrency from '../utils/formatCurrency';
 import { formatProductColor, formatSizeStockSummary } from '../utils/productVariant';
+import { useSettings } from '../context/SettingsContext';
 
 export default function ProductDetail() {
   const { id } = useParams();
+  const { settings } = useSettings();
   const [product, setProduct] = useState(null);
   const [history, setHistory] = useState({ stock_history: [] });
   const [loading, setLoading] = useState(true);
@@ -90,7 +92,7 @@ export default function ProductDetail() {
                   variant="secondary"
                   onClick={() => {
                     try {
-                      printBarcodeLabel(product);
+                      printBarcodeLabel(product, { format: settings?.barcode_format });
                     } catch (error) {
                       toast.error('Popup diblokir browser. Izinkan popup untuk cetak barcode.');
                     }

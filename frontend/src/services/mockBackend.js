@@ -791,15 +791,9 @@ function ensureInboundDocuments(db) {
   });
 }
 
-function parseCsvRows(text) {
-  return String(text || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [barcode, physical_stock, reason = 'Import CSV'] = line.split(',').map((item) => item.trim());
-      return { barcode, physical_stock, reason };
-    });
+function cleanInboundNotes(notes) {
+  const cleanNotes = String(notes || '').split('[NATAKALA_INBOUND_META]')[0].trim();
+  return cleanNotes || '-';
 }
 
 function categoryName(db, id) {
@@ -1066,7 +1060,7 @@ function createReport(db, type, filters = {}) {
           condition: item.condition_note ? `${conditionStatus} - ${item.condition_note}` : conditionStatus,
           purchase_price: purchasePrice,
           subtotal: quantity * purchasePrice,
-          notes: transaction.notes || '',
+          notes: cleanInboundNotes(transaction.notes),
         };
       }),
     );
@@ -1078,6 +1072,63 @@ function createReport(db, type, filters = {}) {
         total_amount: data.reduce((sum, item) => sum + Number(item.subtotal || 0), 0),
       },
       chart: transactions.map((item) => ({ label: item.transaction_no.slice(-3), value: item.total_items })),
+      data,
+    };
+  }
+
+  if (type === 'returns') {
+    const transactions = db.transactionsIn.filter(
+      (item) => inPeriod(item.date, filters) && String(item.inbound_status || '').toLowerCase() === 'barang return',
+    );
+    const data = transactions.flatMap((transaction) =>
+      (transaction.items?.length
+        ? transaction.items
+        : [
+            {
+              product_name: transaction.product_name || transaction.product || transaction.item_summary || '-',
+              size: transaction.size || transaction.size_summary || '-',
+              color: transaction.color || transaction.product_color || 'Tanpa warna',
+              quantity: numberFrom(transaction.quantity, transaction.total_items),
+              purchase_price:
+                numberFrom(transaction.purchase_price) ||
+                (numberFrom(transaction.total_items) > 0
+                  ? numberFrom(transaction.total_amount) / numberFrom(transaction.total_items)
+                  : 0),
+              condition_status: transaction.condition_status || transaction.condition || 'Layak',
+              condition_note: transaction.condition_note || '',
+            },
+          ]).map((item) => {
+        const quantity = numberFrom(item.quantity, transaction.total_items);
+        const purchasePrice = numberFrom(item.purchase_price);
+        const sizes = item.size_quantities
+          ? Object.entries(item.size_quantities).map(([size, amount]) => `${size}: ${amount}`).join(', ')
+          : item.size || 'Allsize';
+        const conditionStatus = item.condition_status || 'Layak';
+
+        return {
+          transaction_no: transaction.transaction_no,
+          date: transaction.date,
+          supplier_name: transaction.supplier_name || '-',
+          product: [item.sku, item.product_name].filter(Boolean).join(' - ') || '-',
+          size: sizes,
+          color: item.color || item.product_color || 'Tanpa warna',
+          total_items: quantity,
+          condition: item.condition_note ? `${conditionStatus} - ${item.condition_note}` : conditionStatus,
+          purchase_price: purchasePrice,
+          total_amount: quantity * purchasePrice,
+          notes: cleanInboundNotes(transaction.notes),
+        };
+      }),
+    );
+
+    return {
+      summary: {
+        total_records: transactions.length,
+        total_rows: data.length,
+        total_items: data.reduce((sum, item) => sum + Number(item.total_items || 0), 0),
+        total_amount: data.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
+      },
+      chart: data.slice(0, 12).map((item) => ({ label: item.transaction_no.slice(-3), value: item.total_items })),
       data,
     };
   }
@@ -1995,117 +2046,6 @@ export async function mockScanStockOpname(id, payload) {
   });
   writeDb(db);
 
-  return { data: session };
-}
-
-export async function mockPauseStockOpname(id) {
-  const db = readDb();
-  const session = db.stockOpnameSessions.find((item) => Number(item.id) === Number(id));
-  if (session) {
-    session.status = 'paused';
-    createAuditEntry(db, {
-      action: 'stock_opname_pause',
-      entity_type: 'stock_opname',
-      entity_id: session.id,
-      entity_label: session.session_no,
-      description: 'Sesi stock opname dijeda.',
-    });
-    writeDb(db);
-  }
-  return { data: session };
-}
-
-export async function mockResumeStockOpname(id) {
-  const db = readDb();
-  const session = db.stockOpnameSessions.find((item) => Number(item.id) === Number(id));
-  if (session) {
-    session.status = 'open';
-    createAuditEntry(db, {
-      action: 'stock_opname_resume',
-      entity_type: 'stock_opname',
-      entity_id: session.id,
-      entity_label: session.session_no,
-      description: 'Sesi stock opname dilanjutkan.',
-    });
-    writeDb(db);
-  }
-  return { data: session };
-}
-
-export async function mockFinalizeStockOpname(id) {
-  const db = readDb();
-  const session = db.stockOpnameSessions.find((item) => Number(item.id) === Number(id));
-  if (session) {
-    session.status = 'review';
-    session.finalized_at = nowStamp();
-    session.summary = {
-      total_scanned: session.items.length,
-      matched: session.items.filter((item) => Number(item.difference) === 0).length,
-      discrepancy: session.items.filter((item) => Number(item.difference) !== 0).length,
-    };
-    createAuditEntry(db, {
-      action: 'stock_opname_finalize',
-      entity_type: 'stock_opname',
-      entity_id: session.id,
-      entity_label: session.session_no,
-      description: 'Sesi opname selesai dan dicocokkan.',
-      meta: {
-        discrepancy: session.summary.discrepancy,
-      },
-    });
-    writeDb(db);
-  }
-  return { data: session };
-}
-
-export async function mockImportStockOpnameCsv(id, file) {
-  const db = readDb();
-  const session = db.stockOpnameSessions.find((item) => Number(item.id) === Number(id));
-  if (!session || !file) {
-    return { data: session };
-  }
-
-  const text = await file.text();
-  const rows = parseCsvRows(text);
-  rows.forEach((row) => {
-    const product = db.products.find(
-      (item) =>
-        String(item.barcode || '').toLowerCase() === String(row.barcode || '').toLowerCase() ||
-        String(item.sku || '').toLowerCase() === String(row.barcode || '').toLowerCase(),
-    );
-    if (!product) return;
-    const difference = Number(row.physical_stock || 0) - Number(product.stock || 0);
-    session.items.unshift({
-      barcode: product.barcode,
-      product_id: product.id,
-      product_name: product.name,
-      size: product.size || '-',
-      color: product.color || '',
-      size_stocks: stockRowsFromBreakdown(product),
-      size_summary: sizeStockSummary(product),
-      system_stock: product.stock,
-      physical_stock: Number(row.physical_stock || 0),
-      difference,
-      reason: row.reason || 'Import CSV',
-    });
-  });
-
-  session.summary = {
-    total_scanned: session.items.length,
-    matched: session.items.filter((item) => Number(item.difference) === 0).length,
-    discrepancy: session.items.filter((item) => Number(item.difference) !== 0).length,
-  };
-  createAuditEntry(db, {
-    action: 'stock_opname_import',
-    entity_type: 'stock_opname',
-    entity_id: session.id,
-    entity_label: session.session_no,
-    description: 'Import CSV untuk stock opname berhasil diproses.',
-    meta: {
-      rows: rows.length,
-    },
-  });
-  writeDb(db);
   return { data: session };
 }
 

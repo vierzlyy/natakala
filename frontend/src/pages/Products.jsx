@@ -17,6 +17,7 @@ import printBarcodeLabel from '../utils/barcodePrint';
 import formatCurrency from '../utils/formatCurrency';
 import { formatProductColor, formatSizeStockSummary, getProductVariantColors, getProductVariantStocks } from '../utils/productVariant';
 import getStockStatus from '../utils/stockStatus';
+import { useSettings } from '../context/SettingsContext';
 
 const initialFilters = {
   search: '',
@@ -67,6 +68,7 @@ const matchesColorCandidateFilters = (product, filters) => {
 
 export default function Products() {
   const navigate = useNavigate();
+  const { settings } = useSettings();
   const [filters, setFilters] = useState(initialFilters);
   const [query, setQuery] = useState(initialFilters);
   const [products, setProducts] = useState([]);
@@ -189,7 +191,7 @@ export default function Products() {
               className="px-3 py-2 text-xs"
               onClick={() => {
                 try {
-                  printBarcodeLabel(row);
+                  printBarcodeLabel(row, { format: settings?.barcode_format });
                 } catch (error) {
                   toast.error('Popup diblokir browser. Izinkan popup untuk cetak barcode.');
                 }
@@ -205,7 +207,7 @@ export default function Products() {
         ),
       },
     ],
-    [navigate],
+    [navigate, settings?.barcode_format],
   );
 
   const handleFilterChange = (event) => {

@@ -17,6 +17,13 @@ import formatCurrency from '../utils/formatCurrency';
 import { summarizeSizeQuantities } from '../utils/transactionItemSummary';
 import { getProductVariantStocks } from '../utils/productVariant';
 import { useSettings } from '../context/SettingsContext';
+import {
+  applyHistoryDateFilter,
+  createHistoryFilter,
+  historyFilterLabel,
+  historyMonthOptions,
+  historyYearOptions,
+} from '../utils/historyDateFilter';
 
 const initialItemForm = {
   product_id: '',
@@ -182,6 +189,8 @@ export default function TransactionsIn() {
   const [deletingId, setDeletingId] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [historyFilter, setHistoryFilter] = useState(createHistoryFilter);
+  const historyYears = useMemo(() => historyYearOptions(), []);
 
   const loadInitial = async () => {
     try {
@@ -211,8 +220,48 @@ export default function TransactionsIn() {
     loadInitial();
   }, []);
 
+  const productSupplierId = (product) => product?.supplier_id ?? product?.supplier?.id ?? '';
+
+  const resetCurrentItem = () => {
+    setSelectedProduct(null);
+    setItemForm((prev) => ({ ...prev, product_id: '', color: '', size: '', size_quantities: {}, purchase_price: '' }));
+  };
+
+  const handleSupplierChange = (event) => {
+    const supplierId = event.target.value;
+
+    setForm((prev) => {
+      const sameSupplierItems = prev.items.filter((item) => String(item.supplier_id || '') === String(supplierId || ''));
+      const shouldKeepItems = !supplierId || sameSupplierItems.length === prev.items.length;
+
+      if (!shouldKeepItems) {
+        toast('Item dari supplier berbeda sudah dibersihkan dari transaksi.');
+      }
+
+      return {
+        ...prev,
+        supplier_id: supplierId,
+        items: shouldKeepItems ? prev.items : sameSupplierItems,
+      };
+    });
+
+    resetCurrentItem();
+  };
+
   const selectProduct = (productId) => {
     const product = productOptions.find((item) => String(item.id) === String(productId));
+    const supplierId = productSupplierId(product);
+
+    if (product && form.supplier_id && String(supplierId) !== String(form.supplier_id)) {
+      toast.error('Produk ini tidak sesuai dengan supplier yang dipilih.');
+      resetCurrentItem();
+      return;
+    }
+
+    if (product && !form.supplier_id && supplierId) {
+      setForm((prev) => ({ ...prev, supplier_id: supplierId }));
+    }
+
     setSelectedProduct(product || null);
     setItemForm((prev) => ({
       ...prev,
@@ -227,9 +276,11 @@ export default function TransactionsIn() {
   const categoryFilteredProductOptions = useMemo(
     () =>
       productOptions.filter(
-        (product) => !productFilters.category_id || String(product.category_id) === String(productFilters.category_id),
+        (product) =>
+          (!form.supplier_id || String(productSupplierId(product)) === String(form.supplier_id)) &&
+          (!productFilters.category_id || String(product.category_id) === String(productFilters.category_id)),
       ),
-    [productFilters.category_id, productOptions],
+    [form.supplier_id, productFilters.category_id, productOptions],
   );
 
   const colorOptions = useMemo(() => {
@@ -268,6 +319,18 @@ export default function TransactionsIn() {
       return;
     }
 
+    const supplierId = productSupplierId(product);
+
+    if (!supplierId) {
+      toast.error('Produk ini belum memiliki supplier.');
+      return;
+    }
+
+    if (form.supplier_id && String(supplierId) !== String(form.supplier_id)) {
+      toast.error('Produk harus berasal dari supplier yang sama.');
+      return;
+    }
+
     const quantity = Number(itemForm.quantity);
 
     if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -291,10 +354,12 @@ export default function TransactionsIn() {
 
     setForm((prev) => ({
       ...prev,
+      supplier_id: prev.supplier_id || supplierId,
       items: [
         ...prev.items,
         {
           product_id: product.id,
+          supplier_id: supplierId,
           product_name: product.name,
           sku: product.sku,
           barcode: product.barcode,
@@ -431,11 +496,17 @@ export default function TransactionsIn() {
     [history, productOptions],
   );
 
+  const filteredHistoryRows = useMemo(
+    () => applyHistoryDateFilter(historyRows, historyFilter),
+    [historyRows, historyFilter],
+  );
+
   const historyColumns = useMemo(
     () => [
       { key: 'transaction_no', title: 'No. Transaksi', render: (row) => <span className="whitespace-nowrap">{row.transaction_no}</span> },
       { key: 'supplier_name', title: 'Supplier' },
       { key: 'date', title: 'Tanggal' },
+      { key: 'group_label', title: 'Kelompok', render: (row) => <span className="block min-w-[150px]">{row.group_label}</span> },
       { key: 'inbound_status', title: 'Status', render: (row) => row.inbound_status || 'Barang Baru' },
       { key: 'total_items', title: 'Total Item', render: (row) => `${row.total_items} pcs` },
       { key: 'product', title: 'Produk', render: (row) => <span className="block min-w-[220px]">{row.product}</span> },
@@ -508,7 +579,7 @@ export default function TransactionsIn() {
               label="Supplier"
               name="supplier_id"
               value={form.supplier_id}
-              onChange={(e) => setForm((prev) => ({ ...prev, supplier_id: e.target.value }))}
+              onChange={handleSupplierChange}
               options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
               placeholder="Pilih supplier"
             />
@@ -686,7 +757,7 @@ export default function TransactionsIn() {
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={loadInitial} loading={loading}>
               <RotateCcw size={15} />
-              Reset
+              Refresh
             </Button>
             <Button variant={editingHistory ? 'warning' : 'secondary'} onClick={() => setEditingHistory((prev) => !prev)}>
               <Pencil size={15} />
@@ -694,9 +765,64 @@ export default function TransactionsIn() {
             </Button>
           </div>
         </div>
+        <div className="mb-4 rounded-[22px] border border-line bg-white p-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Input
+              label="Kelompok Riwayat"
+              as="select"
+              value={historyFilter.mode}
+              onChange={(event) => setHistoryFilter((prev) => ({ ...prev, mode: event.target.value }))}
+            >
+              <option value="all">Semua riwayat</option>
+              <option value="date">Per tanggal</option>
+              <option value="month">Per bulan & tahun</option>
+            </Input>
+            {historyFilter.mode === 'date' ? (
+              <Input
+                label="Tanggal"
+                type="date"
+                value={historyFilter.date}
+                onChange={(event) => setHistoryFilter((prev) => ({ ...prev, date: event.target.value }))}
+              />
+            ) : null}
+            {historyFilter.mode === 'month' ? (
+              <>
+                <Input
+                  label="Bulan"
+                  as="select"
+                  value={historyFilter.month}
+                  onChange={(event) => setHistoryFilter((prev) => ({ ...prev, month: event.target.value }))}
+                >
+                  {historyMonthOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Input>
+                <Input
+                  label="Tahun"
+                  as="select"
+                  value={historyFilter.year}
+                  onChange={(event) => setHistoryFilter((prev) => ({ ...prev, year: event.target.value }))}
+                >
+                  {historyYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </Input>
+              </>
+            ) : null}
+            <div className="flex items-end">
+              <div className="w-full rounded-2xl border border-line bg-canvas px-4 py-3 text-sm font-semibold text-ink">
+                {historyFilterLabel(historyFilter)} · {filteredHistoryRows.length} data
+              </div>
+            </div>
+          </div>
+        </div>
         <Table
           columns={historyColumns}
-          data={historyRows}
+          data={filteredHistoryRows}
           loading={loading}
           emptyMessage="Belum ada transaksi barang masuk."
           rowClassName={(row) =>

@@ -17,6 +17,13 @@ import {
 } from '../utils/productVariant';
 import { summarizeSizeQuantities } from '../utils/transactionItemSummary';
 import { useSettings } from '../context/SettingsContext';
+import {
+  applyHistoryDateFilter,
+  createHistoryFilter,
+  historyFilterLabel,
+  historyMonthOptions,
+  historyYearOptions,
+} from '../utils/historyDateFilter';
 
 const initialItemForm = { product_id: '', color: '', size: '', quantity: 1, method: 'Penjualan' };
 const OUT_DETAIL_CACHE_KEY = 'natakala_out_detail_cache';
@@ -131,6 +138,8 @@ export default function TransactionsOut() {
   const [deletingId, setDeletingId] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [historyFilter, setHistoryFilter] = useState(createHistoryFilter);
+  const historyYears = useMemo(() => historyYearOptions(), []);
 
   const loadHistory = async () => {
     try {
@@ -354,10 +363,16 @@ export default function TransactionsOut() {
     [history, productOptions],
   );
 
+  const filteredHistoryRows = useMemo(
+    () => applyHistoryDateFilter(historyRows, historyFilter),
+    [historyRows, historyFilter],
+  );
+
   const historyColumns = useMemo(
     () => [
       { key: 'transaction_no', title: 'No. Transaksi', render: (row) => <span className="whitespace-nowrap">{row.transaction_no}</span> },
       { key: 'date', title: 'Tanggal' },
+      { key: 'group_label', title: 'Kelompok', render: (row) => <span className="block min-w-[150px]">{row.group_label}</span> },
       { key: 'total_items', title: 'Total Item', render: (row) => `${row.total_items} pcs` },
       { key: 'product', title: 'Produk', render: (row) => <span className="block min-w-[220px]">{row.product}</span> },
       { key: 'size', title: 'Ukuran', render: (row) => <span className="block min-w-[100px]">{row.size}</span> },
@@ -533,7 +548,7 @@ export default function TransactionsOut() {
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={loadHistory} loading={loading}>
               <RotateCcw size={15} />
-              Reset
+              Refresh
             </Button>
             <Button variant={editingHistory ? 'warning' : 'secondary'} onClick={() => setEditingHistory((prev) => !prev)}>
               <Pencil size={15} />
@@ -541,7 +556,62 @@ export default function TransactionsOut() {
             </Button>
           </div>
         </div>
-        <Table columns={historyColumns} data={historyRows} loading={loading} emptyMessage="Belum ada transaksi barang keluar." />
+        <div className="mb-4 rounded-[22px] border border-line bg-white p-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Input
+              label="Kelompok Riwayat"
+              as="select"
+              value={historyFilter.mode}
+              onChange={(event) => setHistoryFilter((prev) => ({ ...prev, mode: event.target.value }))}
+            >
+              <option value="all">Semua riwayat</option>
+              <option value="date">Per tanggal</option>
+              <option value="month">Per bulan & tahun</option>
+            </Input>
+            {historyFilter.mode === 'date' ? (
+              <Input
+                label="Tanggal"
+                type="date"
+                value={historyFilter.date}
+                onChange={(event) => setHistoryFilter((prev) => ({ ...prev, date: event.target.value }))}
+              />
+            ) : null}
+            {historyFilter.mode === 'month' ? (
+              <>
+                <Input
+                  label="Bulan"
+                  as="select"
+                  value={historyFilter.month}
+                  onChange={(event) => setHistoryFilter((prev) => ({ ...prev, month: event.target.value }))}
+                >
+                  {historyMonthOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Input>
+                <Input
+                  label="Tahun"
+                  as="select"
+                  value={historyFilter.year}
+                  onChange={(event) => setHistoryFilter((prev) => ({ ...prev, year: event.target.value }))}
+                >
+                  {historyYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </Input>
+              </>
+            ) : null}
+            <div className="flex items-end">
+              <div className="w-full rounded-2xl border border-line bg-canvas px-4 py-3 text-sm font-semibold text-ink">
+                {historyFilterLabel(historyFilter)} · {filteredHistoryRows.length} data
+              </div>
+            </div>
+          </div>
+        </div>
+        <Table columns={historyColumns} data={filteredHistoryRows} loading={loading} emptyMessage="Belum ada transaksi barang keluar." />
       </Card>
     </div>
   );

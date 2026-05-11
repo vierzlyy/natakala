@@ -5,9 +5,11 @@ import { createExcelExport, createPdfExport } from '../utils/reportExport';
 const reportMap = {
   stock: '/reports/stock',
   transactionsIn: '/reports/transactions-in',
+  returns: '/reports/returns',
   transactionsOut: '/reports/transactions-out',
   bestSeller: '/reports/best-seller',
   inventoryValue: '/reports/inventory-value',
+  mutasi: '/reports/mutasi',
   opname: '/reports/opname',
 };
 

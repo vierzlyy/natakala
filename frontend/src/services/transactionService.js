@@ -1,17 +1,13 @@
-import { apiDelete, apiGet, apiPost, apiUpload } from './api';
+import { apiDelete, apiGet, apiPost } from './api';
 import {
   mockAdjustStockOpname,
   mockCreateTransactionIn,
   mockCreateTransactionOut,
   mockDeleteTransactionIn,
   mockDeleteTransactionOut,
-  mockFinalizeStockOpname,
   mockGetStockOpname,
   mockGetTransactionsIn,
   mockGetTransactionsOut,
-  mockImportStockOpnameCsv,
-  mockPauseStockOpname,
-  mockResumeStockOpname,
   mockScanStockOpname,
   mockStartStockOpname,
   shouldUseMock,
@@ -299,61 +295,6 @@ export const transactionService = {
     } catch (error) {
       if (shouldUseMock(error)) {
         const response = await mockScanStockOpname(id, payload);
-        return normalizeEntityResponse(response, ['session']);
-      }
-      throw error;
-    }
-  },
-
-  async pauseStockOpname(id) {
-    try {
-      const response = await apiPost(`/stock-opname/${id}/pause`);
-      return normalizeEntityResponse(response, ['session']);
-    } catch (error) {
-      if (shouldUseMock(error)) {
-        const response = await mockPauseStockOpname(id);
-        return normalizeEntityResponse(response, ['session']);
-      }
-      throw error;
-    }
-  },
-
-  async resumeStockOpname(id) {
-    try {
-      const response = await apiPost(`/stock-opname/${id}/resume`);
-      return normalizeEntityResponse(response, ['session']);
-    } catch (error) {
-      if (shouldUseMock(error)) {
-        const response = await mockResumeStockOpname(id);
-        return normalizeEntityResponse(response, ['session']);
-      }
-      throw error;
-    }
-  },
-
-  async finalizeStockOpname(id) {
-    try {
-      const response = await apiPost(`/stock-opname/${id}/finalize`);
-      return normalizeEntityResponse(response, ['session']);
-    } catch (error) {
-      if (shouldUseMock(error)) {
-        const response = await mockFinalizeStockOpname(id);
-        return normalizeEntityResponse(response, ['session']);
-      }
-      throw error;
-    }
-  },
-
-  async importStockOpnameCsv(id, file) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await apiUpload(`/stock-opname/${id}/import`, formData);
-      return normalizeEntityResponse(response, ['session']);
-    } catch (error) {
-      if (shouldUseMock(error)) {
-        const response = await mockImportStockOpnameCsv(id, file);
         return normalizeEntityResponse(response, ['session']);
       }
       throw error;

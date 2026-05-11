@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\AuditTrailController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
@@ -41,23 +40,21 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/stock-opname/start', [StockOpnameController::class, 'start']);
     Route::post('/stock-opname/{session}/scan', [StockOpnameController::class, 'scan']);
     Route::post('/stock-opname/{session}/adjust', [StockOpnameController::class, 'adjust']);
-    Route::post('/stock-opname/{session}/pause', [StockOpnameController::class, 'pause']);
-    Route::post('/stock-opname/{session}/resume', [StockOpnameController::class, 'resume']);
-    Route::post('/stock-opname/{session}/finalize', [StockOpnameController::class, 'finalizeSession']);
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);
     Route::get('/reports/transactions-in', [ReportController::class, 'transactionsIn']);
+    Route::get('/reports/returns', [ReportController::class, 'returns']);
     Route::get('/reports/transactions-out', [ReportController::class, 'transactionsOut']);
     Route::get('/reports/best-seller', [ReportController::class, 'bestSeller']);
     Route::get('/reports/inventory-value', [ReportController::class, 'inventoryValue']);
+    Route::get('/reports/mutasi', [ReportController::class, 'mutasi']);
     Route::get('/reports/opname', [ReportController::class, 'opname']);
     Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf']);
     Route::get('/reports/export/excel', [ReportController::class, 'exportExcel']);
-
-    Route::get('/audit-trail', [AuditTrailController::class, 'index']);
 
     Route::get('/settings', [SettingController::class, 'show']);
     Route::put('/settings', [SettingController::class, 'update']);
     Route::post('/settings/backup', [SettingController::class, 'backup']);
     Route::post('/settings/restore', [SettingController::class, 'restore']);
+    Route::post('/settings/delete-data', [SettingController::class, 'deleteData']);
 });

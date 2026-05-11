@@ -59,6 +59,10 @@ class ProductController extends Controller
             'category_id' => ['required', 'exists:categories,id'],
             'size' => ['nullable', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'max:100'],
+            'storage_zone' => ['nullable', 'string', 'max:100'],
+            'storage_aisle' => ['nullable', 'string', 'max:100'],
+            'storage_rack' => ['nullable', 'string', 'max:100'],
+            'storage_bin' => ['nullable', 'string', 'max:100'],
             'purchase_price' => ['required', 'integer', 'min:0'],
             'selling_price' => ['required', 'integer', 'min:0', 'gte:purchase_price'],
             'supplier_id' => ['required', 'exists:suppliers,id'],
@@ -127,6 +131,10 @@ class ProductController extends Controller
             'category_id' => ['required', 'exists:categories,id'],
             'size' => ['nullable', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'max:100'],
+            'storage_zone' => ['nullable', 'string', 'max:100'],
+            'storage_aisle' => ['nullable', 'string', 'max:100'],
+            'storage_rack' => ['nullable', 'string', 'max:100'],
+            'storage_bin' => ['nullable', 'string', 'max:100'],
             'purchase_price' => ['required', 'integer', 'min:0'],
             'selling_price' => ['required', 'integer', 'min:0', 'gte:purchase_price'],
             'supplier_id' => ['required', 'exists:suppliers,id'],
@@ -146,6 +154,10 @@ class ProductController extends Controller
                 'supplier_id',
                 'size',
                 'color',
+                'storage_zone',
+                'storage_aisle',
+                'storage_rack',
+                'storage_bin',
                 'purchase_price',
                 'selling_price',
                 'stock',
@@ -196,6 +208,10 @@ class ProductController extends Controller
                         'supplier_id',
                         'size',
                         'color',
+                        'storage_zone',
+                        'storage_aisle',
+                        'storage_rack',
+                        'storage_bin',
                         'purchase_price',
                         'selling_price',
                         'stock',
@@ -277,6 +293,10 @@ class ProductController extends Controller
 
     private function transform(Product $product): array
     {
+        $imageUrl = $product->image_path
+            ? request()->getSchemeAndHttpHost().'/storage/'.ltrim($product->image_path, '/')
+            : null;
+
         return [
             'id' => $product->id,
             'sku' => $product->sku,
@@ -289,11 +309,22 @@ class ProductController extends Controller
             'selling_price' => $product->selling_price,
             'supplier_id' => $product->supplier_id,
             'supplier_name' => $product->supplier?->name,
+            'storage_zone' => $product->storage_zone,
+            'storage_aisle' => $product->storage_aisle,
+            'storage_rack' => $product->storage_rack,
+            'storage_bin' => $product->storage_bin,
+            'storage_location' => collect([
+                $product->storage_zone,
+                $product->storage_aisle,
+                $product->storage_rack,
+                $product->storage_bin,
+            ])->filter()->implode(' / '),
             'stock' => $product->stock,
             'initial_stock' => $product->initial_stock,
             'minimum_stock' => $product->minimum_stock,
             'barcode' => $product->barcode,
-            'image_url' => $product->image_path ? Storage::url($product->image_path) : null,
+            'image_path' => $product->image_path,
+            'image_url' => $imageUrl,
             'sold_count' => $product->sold_count,
         ];
     }

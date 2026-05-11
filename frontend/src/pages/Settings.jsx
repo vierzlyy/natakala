@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import settingsService from '../services/settingsService';
 import { useSettings } from '../context/SettingsContext';
+import { datedFilename, saveBlob } from '../utils/fileDownload';
 
 const initialForm = {
   minimum_stock: 5,
@@ -74,15 +75,19 @@ export default function Settings() {
   const backupDatabase = async () => {
     try {
       setBackingUp(true);
-      const { blob, filename } = await settingsService.backup();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename || 'natakala-backup.json';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      const { blob } = await settingsService.backup();
+      const saveResult = await saveBlob(blob, datedFilename('NataKala Backup Database - Semua Data', '.json'), [
+        {
+          description: 'File Backup JSON',
+          accept: { 'application/json': ['.json'] },
+        },
+      ]);
+
+      if (saveResult.cancelled) {
+        toast('Penyimpanan backup dibatalkan.');
+        return;
+      }
+
       toast.success('Backup berhasil diunduh.');
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Backup gagal dijalankan. Pastikan endpoint backend sudah aktif.');
@@ -149,7 +154,7 @@ export default function Settings() {
           <div>
             <h4 className="text-xl font-bold text-ink">Backup & Restore</h4>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-              Unduh backup dari backend, lalu unggah kembali file JSON tersebut saat perlu memulihkan pengaturan.
+              Unduh backup seluruh data inventaris, lalu unggah kembali file JSON tersebut saat perlu memulihkan data website.
             </p>
           </div>
           <Button onClick={backupDatabase} loading={backingUp} className="lg:min-w-[190px]">

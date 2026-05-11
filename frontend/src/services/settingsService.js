@@ -7,7 +7,7 @@ import {
   shouldUseMock,
 } from './mockBackend';
 
-function resolveDownloadFilename(headers = {}, fallback = 'natakala-backup.json') {
+function resolveDownloadFilename(headers = {}, fallback = 'natakala-database-backup.json') {
   const disposition = headers['content-disposition'] || headers['Content-Disposition'] || '';
   const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
   const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
@@ -43,11 +43,11 @@ export const settingsService = {
     }
   },
 
-  async backup() {
+  async backup(payload = {}) {
     try {
       const response = await apiDownload('/settings/backup', {
         method: 'post',
-        data: {},
+        data: payload,
       });
       return {
         blob: response.data,
@@ -79,6 +79,11 @@ export const settingsService = {
       }
       throw error;
     }
+  },
+
+  async deleteData(payload) {
+    const response = await apiPost('/settings/delete-data', payload);
+    return response?.data || response;
   },
 };
 
