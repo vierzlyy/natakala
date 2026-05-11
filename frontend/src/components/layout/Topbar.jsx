@@ -1,4 +1,4 @@
-import { Bell, Search } from 'lucide-react';
+import { Bell, Menu, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -30,7 +30,7 @@ const quickPages = [
   { to: '/settings', title: 'Pengaturan', keywords: 'setting sistem backup restore barcode ukuran' },
 ];
 
-export default function Topbar() {
+export default function Topbar({ onOpenMenu, showMenuButton = false }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -67,22 +67,33 @@ export default function Topbar() {
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-[32px] border border-line bg-surface p-5 shadow-panel lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-start gap-3">
-        <div>
-          <p className="brand-wordmark text-xl font-extrabold leading-none">NataKala</p>
-          <h2 className="mt-2 text-[2rem] font-extrabold tracking-[-0.04em] text-ink">
+    <div className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-3 shadow-panel sm:gap-4 sm:rounded-[32px] sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+        {showMenuButton ? (
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            className="mt-0.5 inline-flex shrink-0 rounded-xl border border-line bg-white p-2.5 text-ink shadow-sm transition hover:border-primary hover:text-primary sm:mt-1 sm:rounded-2xl sm:p-3"
+            aria-label="Buka menu navigasi"
+            title="Buka menu navigasi"
+          >
+            <Menu size={18} />
+          </button>
+        ) : null}
+        <div className="min-w-0">
+          <p className="brand-wordmark text-lg font-extrabold leading-none sm:text-xl">NataKala</p>
+          <h2 className="mt-1.5 break-words text-xl font-extrabold text-ink sm:mt-2 sm:text-[2rem]">
             {titles[location.pathname] || ''}
           </h2>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative">
-          <div className="flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3 focus-within:border-primary">
-            <Search size={18} className="text-muted" />
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 sm:min-w-[260px]">
+          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5 focus-within:border-primary sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
+            <Search size={17} className="text-muted" />
             <input
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted sm:w-52"
+              className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted"
               placeholder="Cari cepat halaman..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -92,7 +103,7 @@ export default function Topbar() {
             />
           </div>
           {focused ? (
-            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-full min-w-[260px] overflow-hidden rounded-2xl border border-line bg-white shadow-panel">
+            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 min-w-0 overflow-hidden rounded-xl border border-line bg-white shadow-panel sm:left-auto sm:w-full sm:min-w-[260px] sm:rounded-2xl">
               {results.length ? (
                 results.map((page) => (
                   <button
@@ -116,11 +127,11 @@ export default function Topbar() {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3">
-          <Bell size={18} className="text-warning" />
-          <div>
-            <p className="text-sm font-semibold text-ink">{user?.name || 'Admin'}</p>
-            <p className="text-xs text-muted">{user?.email || 'admin@natakala.test'}</p>
+        <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5 sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
+          <Bell size={17} className="text-warning" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink">{user?.name || 'Admin'}</p>
+            <p className="truncate text-xs text-muted">{user?.email || 'admin@natakala.test'}</p>
           </div>
         </div>
       </div>

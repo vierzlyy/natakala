@@ -283,3 +283,30 @@ textarea {
   background: #d6d3ce;
   border-radius: 999px;
 }
+
+@media (max-width: 640px) {
+  .admin-scene .p-6 {
+    padding: 0.875rem;
+  }
+
+  .admin-scene .p-5 {
+    padding: 0.875rem;
+  }
+
+  .admin-scene .rounded-\[28px\],
+  .admin-scene .rounded-\[32px\] {
+    border-radius: 1.25rem;
+  }
+
+  .admin-scene .text-xl {
+    line-height: 1.25;
+  }
+
+  .admin-scene .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem;
+  }
+
+  .admin-scene .gap-6 {
+    gap: 1rem;
+  }
+}
