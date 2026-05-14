@@ -33,10 +33,12 @@ const initialForm = {
   image: null,
 };
 
+const DEFAULT_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'Allsize'];
+
 
 export default function ProductForm() {
   const { settings } = useSettings();
-  const availableSizes = settings?.sizes || ['Allsize', 'Bigsize'];
+  const availableSizes = settings?.sizes?.length ? settings.sizes : DEFAULT_SIZES;
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = useMemo(() => Boolean(id), [id]);

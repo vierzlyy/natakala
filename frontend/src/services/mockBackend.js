@@ -6,12 +6,26 @@ const createId = () => Math.floor(Date.now() + Math.random() * 1000);
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const DEFAULT_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'Allsize'];
+const LEGACY_DEFAULT_SIZES = ['Allsize', 'Bigsize'];
+
+function normalizeSettingsSizes(sizes) {
+  if (!Array.isArray(sizes) || !sizes.length) return DEFAULT_SIZES;
+
+  const cleanedSizes = sizes.map((size) => String(size || '').trim()).filter(Boolean);
+  const isLegacyDefault =
+    cleanedSizes.length === LEGACY_DEFAULT_SIZES.length &&
+    LEGACY_DEFAULT_SIZES.every((size) => cleanedSizes.includes(size));
+
+  return isLegacyDefault ? DEFAULT_SIZES : cleanedSizes;
+}
+
 const sampleDatabase = {
   settings: {
     minimum_stock: 5,
     barcode_format: 'CODE128',
     currency: 'IDR',
-    sizes: ['Allsize', 'Bigsize'],
+    sizes: DEFAULT_SIZES,
   },
   categories: [
     { id: 1, name: 'Atasan', description: 'Kemeja, kaos, blouse, dan sejenisnya' },
@@ -592,6 +606,11 @@ function ensureVariantBucket(product, color) {
 }
 
 function ensureSeedData(db) {
+  db.settings = {
+    ...sampleDatabase.settings,
+    ...(db.settings || {}),
+    sizes: normalizeSettingsSizes(db.settings?.sizes),
+  };
   db.stockOpnameSessions = Array.isArray(db.stockOpnameSessions) ? db.stockOpnameSessions : [];
   db.stockHistory = Array.isArray(db.stockHistory) ? db.stockHistory : [];
   db.auditLogs = [];
@@ -2126,7 +2145,7 @@ export async function mockUpdateSettings(payload) {
   db.settings = {
     ...db.settings,
     ...payload,
-    sizes: Array.isArray(payload.sizes) ? payload.sizes : db.settings.sizes,
+    sizes: Array.isArray(payload.sizes) ? normalizeSettingsSizes(payload.sizes) : db.settings.sizes,
   };
   createAuditEntry(db, {
     action: 'settings_update',
@@ -2159,7 +2178,7 @@ export async function mockRestoreSettings(file) {
     minimum_stock: settings.minimum_stock ?? 5,
     barcode_format: settings.barcode_format ?? 'CODE128',
     currency: settings.currency ?? 'IDR',
-    sizes: settings.sizes ?? ['S', 'M', 'L', 'XL'],
+    sizes: normalizeSettingsSizes(settings.sizes),
   };
   writeDb(db);
   return { data: db.settings };

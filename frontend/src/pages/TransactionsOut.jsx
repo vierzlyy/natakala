@@ -26,6 +26,7 @@ import {
 } from '../utils/historyDateFilter';
 
 const initialItemForm = { product_id: '', color: '', size: '', quantity: 1, method: 'Penjualan' };
+const DEFAULT_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'Allsize'];
 const OUT_DETAIL_CACHE_KEY = 'natakala_out_detail_cache';
 
 const sortProductsByName = (products) =>
@@ -125,7 +126,7 @@ function mergeHistoryWithCachedItems(transactions = []) {
 
 export default function TransactionsOut() {
   const { settings } = useSettings();
-  const availableSizes = settings?.sizes || ['Allsize', 'Bigsize'];
+  const availableSizes = settings?.sizes?.length ? settings.sizes : DEFAULT_SIZES;
   const [categories, setCategories] = useState([]);
   const [history, setHistory] = useState([]);
   const [productOptions, setProductOptions] = useState([]);

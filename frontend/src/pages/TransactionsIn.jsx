@@ -36,6 +36,7 @@ const initialItemForm = {
 };
 
 const ALLSIZE_LABEL = 'Allsize';
+const DEFAULT_SIZES = ['S', 'M', 'L', 'XL', 'XXL', ALLSIZE_LABEL];
 const INBOUND_STATUSES = ['Barang Baru', 'Barang Return'];
 const RETURN_CONDITIONS = ['Layak', 'Cacat', 'Ex-display', 'Rusak Ringan'];
 
@@ -175,7 +176,7 @@ function mergeHistoryWithDocuments(transactions = [], documents = []) {
 
 export default function TransactionsIn() {
   const { settings } = useSettings();
-  const availableSizes = settings?.sizes || ['Allsize', 'Bigsize'];
+  const availableSizes = settings?.sizes?.length ? settings.sizes : DEFAULT_SIZES;
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [history, setHistory] = useState([]);
