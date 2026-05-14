@@ -279,7 +279,7 @@ function buildCombinedDocumentHtml(reports = [], filters = {}) {
               <h2>${escapeHtml(label)}</h2>
               <p>${escapeHtml(description)}</p>
             </div>
-            <span>${escapeHtml(String(data.length))} data</span>
+            <span class="count-badge">${escapeHtml(String(data.length))} data</span>
           </div>
           <div class="summary-grid">
             ${Object.entries(summary).map(([key, value]) => `
@@ -289,22 +289,24 @@ function buildCombinedDocumentHtml(reports = [], filters = {}) {
               </div>
             `).join('') || '<div class="summary-card"><strong>Ringkasan</strong><div>-</div></div>'}
           </div>
-          <table>
-            <thead>
-              <tr>
-                ${headers.length ? headers.map((key) => `<th>${escapeHtml(prettifyKey(key))}</th>`).join('') : '<th>Data</th>'}
-              </tr>
-            </thead>
-            <tbody>
-              ${data.length
-                ? data.map((row) => `
-                  <tr>
-                    ${headers.map((key) => `<td>${escapeHtml(formatValueByKey(key, row[key], reportType))}</td>`).join('')}
-                  </tr>
-                `).join('')
-                : '<tr><td>Tidak ada data laporan.</td></tr>'}
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  ${headers.length ? headers.map((key) => `<th>${escapeHtml(prettifyKey(key))}</th>`).join('') : '<th>Data</th>'}
+                </tr>
+              </thead>
+              <tbody>
+                ${data.length
+                  ? data.map((row) => `
+                    <tr>
+                      ${headers.map((key) => `<td>${escapeHtml(formatValueByKey(key, row[key], reportType))}</td>`).join('')}
+                    </tr>
+                  `).join('')
+                  : '<tr><td>Tidak ada data laporan.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
         </section>
       `;
     })
@@ -317,46 +319,259 @@ function buildCombinedDocumentHtml(reports = [], filters = {}) {
         <meta charset="UTF-8" />
         <title>Laporan Inventaris Lengkap</title>
         <style>
-          body { font-family: "Segoe UI", Arial, sans-serif; margin: 28px; color: #1e1e1e; background: #f8f6f2; }
-          .sheet { background: #fff; border: 1px solid #d6d3ce; border-radius: 22px; padding: 28px; }
-          .header { display: flex; justify-content: space-between; gap: 18px; border-bottom: 1px solid #edeae5; padding-bottom: 18px; }
-          h1 { margin: 0; font-size: 28px; }
-          h2 { margin: 0; font-size: 20px; }
-          p { margin: 6px 0 0; color: #6b6b6b; line-height: 1.5; }
-          .meta { text-align: right; color: #6b6b6b; font-size: 12px; }
-          .report-section { margin-top: 28px; page-break-inside: avoid; }
-          .section-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
-          .section-heading span { border: 1px solid #d6d3ce; border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-          .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
-          .summary-card { border: 1px solid #d6d3ce; border-radius: 14px; padding: 10px 12px; background: #faf9f6; }
-          .summary-card strong { display: block; font-size: 11px; color: #6b6b6b; text-transform: uppercase; }
-          .summary-card div { margin-top: 6px; font-size: 16px; font-weight: 800; }
-          table { width: 100%; border-collapse: collapse; border: 1px solid #d6d3ce; }
-          th, td { border: 1px solid #d6d3ce; padding: 8px 9px; text-align: left; vertical-align: top; font-size: 11px; }
-          th { background: #edeae5; text-transform: uppercase; letter-spacing: 0.04em; }
-          tr:nth-child(even) td { background: #faf9f6; }
-          .footer { margin-top: 28px; border-top: 1px solid #edeae5; padding-top: 14px; color: #6b6b6b; font-size: 12px; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            padding: 20px;
+            background: #f1f3f6;
+            color: #111827;
+            font-family: Arial, "Segoe UI", sans-serif;
+            font-size: 12px;
+            line-height: 1.45;
+          }
+          .sheet {
+            max-width: 1120px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #c8ced8;
+            box-shadow: 0 14px 40px rgba(17, 24, 39, .10);
+          }
+          .brand-strip {
+            height: 7px;
+            background: linear-gradient(90deg, #111827 0 34%, #9a6a38 34% 100%);
+          }
+          .content {
+            padding: 28px 32px 26px;
+          }
+          .header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 260px;
+            gap: 24px;
+            align-items: start;
+            border-bottom: 3px solid #111827;
+            padding-bottom: 18px;
+          }
+          .masthead {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .monogram {
+            display: flex;
+            width: 44px;
+            height: 44px;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #111827;
+            background: #f8f1e8;
+            color: #111827;
+            font-size: 16px;
+            font-weight: 900;
+          }
+          .brand-name {
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+          }
+          .brand-meta {
+            margin-top: 3px;
+            color: #5f6673;
+            font-size: 10px;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+          }
+          h1 {
+            margin: 18px 0 8px;
+            font-size: 27px;
+            line-height: 1.12;
+            text-transform: uppercase;
+          }
+          h2 {
+            margin: 0;
+            font-size: 17px;
+            text-transform: uppercase;
+          }
+          p {
+            margin: 6px 0 0;
+            color: #5f6673;
+          }
+          .meta {
+            border: 1px solid #cfd4dc;
+            background: #fff;
+          }
+          .meta-title {
+            background: #111827;
+            color: #fff;
+            padding: 8px 10px;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+          }
+          .meta-row {
+            padding: 10px;
+            border-top: 1px solid #e5e7eb;
+          }
+          .meta-row:first-of-type {
+            border-top: 0;
+          }
+          .meta-row strong {
+            display: block;
+            color: #5f6673;
+            font-size: 9px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+          }
+          .meta-row span {
+            display: block;
+            margin-top: 4px;
+            font-weight: 800;
+          }
+          .report-section {
+            margin-top: 26px;
+            page-break-inside: avoid;
+          }
+          .section-heading {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 12px;
+          }
+          .count-badge {
+            border: 1px solid #9a6a38;
+            background: #f8f1e8;
+            color: #5d3d1e;
+            padding: 6px 10px;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            white-space: nowrap;
+          }
+          .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            border-top: 1px solid #cfd4dc;
+            border-left: 1px solid #cfd4dc;
+            margin-bottom: 14px;
+          }
+          .summary-card {
+            border-right: 1px solid #cfd4dc;
+            border-bottom: 1px solid #cfd4dc;
+            padding: 11px 12px;
+            background: #fff;
+          }
+          .summary-card strong {
+            display: block;
+            color: #5f6673;
+            font-size: 9px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+          }
+          .summary-card div {
+            margin-top: 7px;
+            font-size: 17px;
+            font-weight: 900;
+          }
+          .table-wrap {
+            overflow-x: auto;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #cfd4dc;
+          }
+          th,
+          td {
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 11px;
+          }
+          th {
+            border-color: #cfd4dc;
+            background: #e7eaf0;
+            color: #111827;
+            font-size: 9px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+          }
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            margin-top: 28px;
+            border-top: 1px solid #cfd4dc;
+            padding-top: 12px;
+            color: #5f6673;
+            font-size: 10px;
+          }
+          .footer strong {
+            color: #111827;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+          }
           @media print {
-            body { margin: 0; background: #fff; }
-            .sheet { border: 0; border-radius: 0; }
+            @page { size: A4 landscape; margin: 12mm; }
+            body {
+              padding: 0;
+              background: #fff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .sheet {
+              border: 0;
+              box-shadow: none;
+              max-width: none;
+            }
+            .content { padding: 0; }
+            .brand-strip {
+              height: 5px;
+              margin-bottom: 16px;
+            }
             .report-section { page-break-before: auto; }
           }
         </style>
       </head>
       <body>
         <div class="sheet">
+          <div class="brand-strip"></div>
+          <div class="content">
           <div class="header">
             <div>
+              <div class="masthead">
+                <div class="monogram">NK</div>
+                <div>
+                  <div class="brand-name">NataKala E-Inventory</div>
+                  <div class="brand-meta">Inventory Report Document</div>
+                </div>
+              </div>
               <h1>NataKala - Laporan Inventaris Lengkap</h1>
               <p>Dokumen gabungan seluruh laporan yang dipilih.</p>
             </div>
             <div class="meta">
-              <strong>Periode</strong><br />${escapeHtml(periodText)}<br /><br />
-              <strong>Tanggal Export</strong><br />${escapeHtml(generatedAt)}
+              <div class="meta-title">Identitas Laporan</div>
+              <div class="meta-row">
+                <strong>Periode</strong>
+                <span>${escapeHtml(periodText)}</span>
+              </div>
+              <div class="meta-row">
+                <strong>Tanggal Export</strong>
+                <span>${escapeHtml(generatedAt)}</span>
+              </div>
             </div>
           </div>
           ${sections}
-          <div class="footer">NataKala - E-Inventory Toko/Gudang Pakaian | Dokumen diekspor otomatis dari sistem.</div>
+          <div class="footer">
+            <span><strong>NataKala</strong> E-Inventory</span>
+            <span>Dokumen laporan ini dibuat otomatis oleh sistem sebagai arsip operasional.</span>
+          </div>
+          </div>
         </div>
       </body>
     </html>

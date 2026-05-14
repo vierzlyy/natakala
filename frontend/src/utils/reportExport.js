@@ -1,4 +1,5 @@
 function prettifyKey(key) {
+  if (key === 'sku' || key === 'SKU') return 'SKU';
   return String(key || '')
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -12,16 +13,47 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;');
 }
 
+function formatReportValue(key, value) {
+  if (value === null || value === undefined || value === '') return '-';
+
+  const normalizedKey = String(key || '').toLowerCase();
+  const shouldFormatCurrency =
+    normalizedKey.includes('price') ||
+    normalizedKey.includes('amount') ||
+    normalizedKey.includes('value');
+
+  if (typeof value === 'number' && shouldFormatCurrency) {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  if (typeof value === 'number') {
+    return new Intl.NumberFormat('id-ID').format(value);
+  }
+
+  if (Array.isArray(value) || typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
 function buildSummaryRows(summary = {}) {
-  return Object.entries(summary)
-    .map(
-      ([key, value]) => `
-        <div class="metric-card">
-          <div class="metric-label">${escapeHtml(prettifyKey(key))}</div>
-          <div class="metric-value">${escapeHtml(value)}</div>
-        </div>`,
-    )
-    .join('');
+  return (
+    Object.entries(summary)
+      .map(
+        ([key, value]) => `
+          <div class="metric-card">
+            <div class="metric-label">${escapeHtml(prettifyKey(key))}</div>
+            <div class="metric-value">${escapeHtml(formatReportValue(key, value))}</div>
+          </div>`,
+      )
+      .join('') ||
+    '<div class="metric-card"><div class="metric-label">Ringkasan</div><div class="metric-value">-</div></div>'
+  );
 }
 
 function buildTableHead(data = []) {
@@ -39,13 +71,13 @@ function buildTableBody(data = []) {
     return '<tr><td>Tidak ada data laporan.</td></tr>';
   }
 
+  const headers = Object.keys(data[0]);
+
   return data
     .map(
       (row) => `
         <tr>
-          ${Object.values(row)
-            .map((value) => `<td>${escapeHtml(value)}</td>`)
-            .join('')}
+          ${headers.map((key) => `<td>${escapeHtml(formatReportValue(key, row[key]))}</td>`).join('')}
         </tr>`,
     )
     .join('');
@@ -60,216 +92,286 @@ function buildReportHtml({ title, subtitle, summary, data }) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>${escapeHtml(title)}</title>
         <style>
+          * { box-sizing: border-box; }
           body {
-            font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-            background: #f8f6f2;
-            color: #2b2b2b;
+            font-family: Arial, "Segoe UI", Helvetica, sans-serif;
+            background: #f1f3f6;
+            color: #111827;
             margin: 0;
-            padding: 24px;
+            padding: 20px;
+            font-size: 12px;
+            line-height: 1.45;
           }
           .sheet {
-            max-width: 1080px;
+            max-width: 1120px;
             margin: 0 auto;
             background: #ffffff;
-            border: 1px solid #d6d3ce;
-            border-radius: 22px;
-            padding: 30px;
-            box-shadow: 0 18px 40px rgba(43, 43, 43, 0.08);
+            border: 1px solid #c8ced8;
+            box-shadow: 0 14px 40px rgba(17, 24, 39, 0.10);
+          }
+          .brand-strip {
+            height: 7px;
+            background: linear-gradient(90deg, #111827 0 34%, #9a6a38 34% 100%);
+          }
+          .content {
+            padding: 28px 32px 26px;
           }
           .brand-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 260px;
+            align-items: start;
+            gap: 24px;
             padding-bottom: 18px;
-            border-bottom: 1px solid #edeae5;
+            border-bottom: 3px solid #111827;
           }
-          .brand-block {
+          .masthead {
             display: flex;
-            flex-direction: column;
-            gap: 6px;
-          }
-          .brand-chip {
-            display: inline-flex;
             align-items: center;
-            align-self: flex-start;
-            padding: 8px 14px;
-            border-radius: 999px;
-            background: linear-gradient(135deg, rgba(77, 150, 255, 0.18), rgba(255, 217, 61, 0.2));
-            color: #1e1e1e;
+            gap: 12px;
+          }
+          .monogram {
+            display: flex;
+            width: 44px;
+            height: 44px;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #111827;
+            background: #f8f1e8;
+            color: #111827;
+            font-size: 16px;
+            font-weight: 900;
+          }
+          .brand-name {
             font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.18em;
+            font-weight: 900;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+          }
+          .brand-meta {
+            margin-top: 3px;
+            color: #5f6673;
+            font-size: 10px;
+            letter-spacing: .06em;
             text-transform: uppercase;
           }
           h1 {
-            margin: 0;
-            font-size: 30px;
-            color: #1e1e1e;
+            margin: 18px 0 8px;
+            font-size: 27px;
+            line-height: 1.12;
+            color: #111827;
+            text-transform: uppercase;
           }
           .subtitle {
-            color: #6b6b6b;
-            font-size: 14px;
-            line-height: 1.6;
+            max-width: 680px;
+            color: #5f6673;
+            font-size: 12px;
           }
           .meta-box {
-            min-width: 230px;
-            border: 1px solid #d6d3ce;
-            border-radius: 16px;
-            padding: 14px 16px;
-            background: #faf9f6;
+            border: 1px solid #cfd4dc;
+            background: #fff;
           }
           .meta-title {
-            font-size: 12px;
-            font-weight: 700;
-            color: #6b6b6b;
+            background: #111827;
+            color: #fff;
+            padding: 8px 10px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .1em;
             text-transform: uppercase;
-            letter-spacing: 0.12em;
           }
           .meta-value {
-            margin-top: 8px;
-            font-size: 15px;
-            font-weight: 700;
-            color: #1e1e1e;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 800;
+            color: #111827;
+          }
+          .section-title {
+            margin-top: 22px;
+            margin-bottom: 10px;
+            font-size: 11px;
+            font-weight: 900;
+            color: #111827;
+            letter-spacing: .12em;
+            text-transform: uppercase;
           }
           .summary-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-            margin-top: 24px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            border-top: 1px solid #cfd4dc;
+            border-left: 1px solid #cfd4dc;
           }
           .metric-card {
-            border: 1px solid #d6d3ce;
-            border-radius: 18px;
-            padding: 16px 18px;
-            background: linear-gradient(135deg, rgba(77, 150, 255, 0.08), rgba(255, 217, 61, 0.12));
+            border-right: 1px solid #cfd4dc;
+            border-bottom: 1px solid #cfd4dc;
+            padding: 12px 13px;
+            background: #fff;
           }
           .metric-label {
-            font-size: 12px;
-            font-weight: 700;
-            color: #6b6b6b;
+            font-size: 9px;
+            font-weight: 800;
+            color: #5f6673;
             text-transform: uppercase;
-            letter-spacing: 0.12em;
+            letter-spacing: .08em;
           }
           .metric-value {
-            margin-top: 10px;
-            font-size: 26px;
-            font-weight: 800;
-            color: #1e1e1e;
+            margin-top: 7px;
+            font-size: 19px;
+            font-weight: 900;
+            color: #111827;
+          }
+          .table-wrap {
+            overflow-x: auto;
           }
           .report-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 24px;
-            border: 1px solid #d6d3ce;
-            border-radius: 18px;
-            overflow: hidden;
+            border: 1px solid #cfd4dc;
           }
           .report-table th {
-            background: #edeae5;
-            color: #1e1e1e;
+            background: #e7eaf0;
+            color: #111827;
             text-align: left;
-            padding: 13px 12px;
-            font-size: 13px;
+            padding: 9px 8px;
+            border: 1px solid #cfd4dc;
+            font-size: 9px;
+            font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: .08em;
           }
           .report-table td {
-            padding: 12px;
-            border-bottom: 1px solid #edeae5;
-            font-size: 13px;
+            padding: 8px;
+            border: 1px solid #e5e7eb;
+            font-size: 11px;
             vertical-align: top;
-          }
-          .report-table tr:nth-child(even) td {
-            background: #faf9f6;
-          }
-          .section-title {
-            margin-top: 28px;
-            margin-bottom: 12px;
-            font-size: 16px;
-            font-weight: 800;
-            color: #1e1e1e;
-          }
-          .footer {
-            margin-top: 22px;
-            color: #6b6b6b;
-            font-size: 12px;
-            padding-top: 14px;
-            border-top: 1px solid #edeae5;
           }
           .signature-wrap {
             display: flex;
             justify-content: flex-end;
-            margin-top: 28px;
+            margin-top: 34px;
           }
           .signature-box {
-            width: 280px;
+            width: 260px;
             text-align: left;
           }
           .signature-label {
             font-size: 12px;
-            color: #6b6b6b;
+            color: #5f6673;
           }
           .signature-space {
-            height: 56px;
+            height: 58px;
           }
           .signature-name {
             font-size: 14px;
-            font-weight: 800;
-            color: #1e1e1e;
+            font-weight: 900;
+            color: #111827;
+            border-top: 1px solid #111827;
+            padding-top: 8px;
           }
           .signature-role {
             margin-top: 4px;
             font-size: 12px;
-            color: #6b6b6b;
+            color: #5f6673;
+          }
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            margin-top: 24px;
+            color: #5f6673;
+            font-size: 10px;
+            padding-top: 12px;
+            border-top: 1px solid #cfd4dc;
+          }
+          .footer strong {
+            color: #111827;
+            letter-spacing: .08em;
+            text-transform: uppercase;
           }
           @media print {
+            @page {
+              size: A4 landscape;
+              margin: 12mm;
+            }
             body {
               background: white;
               padding: 0;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .sheet {
               border: 0;
-              border-radius: 0;
               box-shadow: none;
               max-width: none;
+            }
+            .content {
               padding: 0;
             }
-            .brand-row {
-              margin-bottom: 12px;
+            .brand-strip {
+              height: 5px;
+              margin-bottom: 16px;
+            }
+          }
+          @media (max-width: 760px) {
+            body { padding: 12px; }
+            .content { padding: 22px; }
+            .brand-row,
+            .summary-grid {
+              grid-template-columns: 1fr;
+            }
+            .report-table {
+              min-width: 820px;
             }
           }
         </style>
       </head>
       <body>
         <div class="sheet">
-          <div class="brand-row">
-            <div class="brand-block">
-              <div class="brand-chip">NataKala</div>
-              <h1>${escapeHtml(title)}</h1>
-              <div class="subtitle">${escapeHtml(subtitle)}</div>
+          <div class="brand-strip"></div>
+          <div class="content">
+            <div class="brand-row">
+              <div>
+                <div class="masthead">
+                  <div class="monogram">NK</div>
+                  <div>
+                    <div class="brand-name">NataKala E-Inventory</div>
+                    <div class="brand-meta">Inventory Report Document</div>
+                  </div>
+                </div>
+                <h1>${escapeHtml(title)}</h1>
+                <div class="subtitle">${escapeHtml(subtitle)}</div>
+              </div>
+              <div class="meta-box">
+                <div class="meta-title">Tanggal Export</div>
+                <div class="meta-value">${escapeHtml(new Date().toLocaleString('id-ID'))}</div>
+              </div>
             </div>
-            <div class="meta-box">
-              <div class="meta-title">Tanggal Export</div>
-              <div class="meta-value">${escapeHtml(new Date().toLocaleString('id-ID'))}</div>
+
+            <div class="section-title">Ringkasan Laporan</div>
+            <div class="summary-grid">${buildSummaryRows(summary)}</div>
+
+            <div class="section-title">Data Laporan</div>
+            <div class="table-wrap">
+              <table class="report-table">
+                <thead>${buildTableHead(data)}</thead>
+                <tbody>${buildTableBody(data)}</tbody>
+              </table>
+            </div>
+
+            <div class="signature-wrap">
+              <div class="signature-box">
+                <div class="signature-label">Mengetahui,</div>
+                <div class="signature-space"></div>
+                <div class="signature-name">Admin NataKala</div>
+                <div class="signature-role">Administrator Sistem Inventaris</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <span><strong>NataKala</strong> E-Inventory</span>
+              <span>Dokumen laporan ini dibuat otomatis oleh sistem sebagai arsip operasional.</span>
             </div>
           </div>
-          <div class="section-title">Ringkasan</div>
-          <div class="summary-grid">${buildSummaryRows(summary)}</div>
-          <div class="section-title">Data Laporan</div>
-          <table class="report-table">
-            <thead>${buildTableHead(data)}</thead>
-            <tbody>${buildTableBody(data)}</tbody>
-          </table>
-          <div class="signature-wrap">
-            <div class="signature-box">
-              <div class="signature-label">Mengetahui,</div>
-              <div class="signature-space"></div>
-              <div class="signature-name">Admin NataKala</div>
-              <div class="signature-role">Administrator Sistem Inventaris</div>
-            </div>
-          </div>
-          <div class="footer">NataKala - E-Inventory Toko/Gudang Pakaian | Dokumen diekspor otomatis dari sistem.</div>
         </div>
       </body>
     </html>
@@ -278,8 +380,7 @@ function buildReportHtml({ title, subtitle, summary, data }) {
 
 export function createExcelExport(reportType, report) {
   const title = `Laporan ${prettifyKey(reportType)}`;
-  const subtitle =
-    'NataKala - E-Inventory Toko/Gudang Pakaian | Dokumen Excel laporan inventaris yang siap dibuka dan dirapikan lebih lanjut di spreadsheet.';
+  const subtitle = 'Dokumen laporan inventaris NataKala yang siap dibuka dan dirapikan lebih lanjut di spreadsheet.';
   const html = buildReportHtml({
     title,
     subtitle,
@@ -304,21 +405,21 @@ export function createPdfExport(reportType, report, filters = {}) {
     filters.period === 'all'
       ? 'Semua data'
       : filters.period === 'today'
-      ? 'Periode hari ini'
-      : filters.period === 'week'
-        ? 'Periode minggu ini'
-        : filters.period === 'month'
-          ? 'Periode bulan ini'
-          : filters.start_date && filters.end_date
-            ? `Periode ${filters.start_date} s/d ${filters.end_date}`
-            : 'Periode kustom';
+        ? 'Periode hari ini'
+        : filters.period === 'week'
+          ? 'Periode minggu ini'
+          : filters.period === 'month'
+            ? 'Periode bulan ini'
+            : filters.start_date && filters.end_date
+              ? `Periode ${filters.start_date} s/d ${filters.end_date}`
+              : 'Periode kustom';
 
   return {
     mode: 'print',
     title,
     html: buildReportHtml({
       title,
-      subtitle: `NataKala - E-Inventory Toko/Gudang Pakaian | ${periodLabel}`,
+      subtitle: `Dokumen laporan inventaris NataKala | ${periodLabel}`,
       summary: report.summary || {},
       data: report.data || [],
     }),
