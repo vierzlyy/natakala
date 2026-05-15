@@ -430,8 +430,9 @@ function buildCombinedDocumentHtml(reports = [], filters = {}) {
             font-weight: 800;
           }
           .report-section {
-            margin-top: 26px;
-            page-break-inside: avoid;
+            margin-top: 16px;
+            break-inside: auto;
+            page-break-inside: auto;
           }
           .section-heading {
             display: flex;
@@ -534,7 +535,11 @@ function buildCombinedDocumentHtml(reports = [], filters = {}) {
               height: 5px;
               margin-bottom: 16px;
             }
-            .report-section { page-break-before: auto; }
+            .report-section {
+              break-inside: auto;
+              page-break-before: auto;
+              page-break-inside: auto;
+            }
           }
         </style>
       </head>
